@@ -1,0 +1,113 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == 'main'
+
+stages:
+  - build
+  - test
+  - delivery
+  - deploy
+
+variables:
+  VERSION: "1.0.0"
+  GROUP_NAME: "fk"
+  KUBE_NAMESPACE: "${GROUP_NAME}-fk"
+  DOCKER_IMAGE_PACKAGE: "fk"
+  DOCKER_IMAGE_NAME: "${REPO_DOCKER_IP}/${DOCKER_REPO_REL}/${DOCKER_IMAGE_PACKAGE}/relocation-service:${VERSION}"
+  IMAGE_BASE_JRE: "repository.fk.team:5061/bellsoft/liberica-runtime-container:jre-17-slim-musl"
+
+cache:
+  key: maven-cache
+  paths:
+    - .m2/repository
+
+# STAGE: BUILD
+package:
+  stage: build
+  tags:
+    - build
+  script:
+    - |
+      echo "Building version: $VERSION"
+      mvn -s .m2/settings.xml clean package -DskipTests \
+        -Dproject.version=$VERSION \
+        -DremoteRepositories=$NEXUS_DEPENDENCIES_URL
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - target/
+
+# STAGE: TEST
+unit-tests:
+  stage: test
+  tags:
+    - build
+  needs:
+    - package
+  script:
+    - |
+      echo "Running unit tests..."
+      mvn -s .m2/settings.xml test \
+        -Dtest="!*IntegrationTest,!*IT,!*KafkaTest" \
+        -Dproject.version=$VERSION
+  artifacts:
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+    when: always
+
+integration-tests:
+  stage: test
+  tags:
+    - docker-test
+  needs:
+    - package
+  script:
+    - |
+      echo "Running integration tests..."
+      mvn -s .m2/settings.xml verify \
+        -Dproject.version=$VERSION \
+        -DskipUnitTests=true
+  artifacts:
+    reports:
+      junit:
+        - target/failsafe-reports/TEST-*.xml
+    when: always
+
+# STAGE: DELIVERY
+image-delivery:
+  stage: delivery
+  tags:
+    - docker
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+  script:
+    - echo "Building image for RELOCATION-SERVICE..."
+    - docker buildx build --build-arg IMAGE_BASE_JRE=${IMAGE_BASE_JRE} -t ${DOCKER_IMAGE_NAME} .
+    - echo "Deploying image to nexus ..."
+    - update-ca-certificates
+    - docker login -u ${MAVEN_REPO_USER} -p ${MAVEN_REPO_PASSWORD} ${REPO_DOCKER_IP}
+    - docker push ${DOCKER_IMAGE_NAME}
+
+# ========== DEPLOY (MANUAL) ==========
+deploy-to-kubernetes:
+  stage: deploy
+  image: repository.fk.team:5061/dysnix/kubectl:v1.27
+  tags:
+    - docker
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+  needs:
+    - image-delivery
+  variables:
+    KUBECTL_CLI_OPTS: |
+      --namespace=${KUBE_NAMESPACE}
+      --server=${KUBECTL_URL}
+      --insecure-skip-tls-verify=true
+      --token=${KUBE_TOKEN}
+  script:
+    - echo "Deploying RELOCATION-SERVICE to kubernetes ..."
+    - find ./kube -name "*.yaml" -exec sed -i "s/\${VERSION}/${VERSION}/g" {} \;
+    - kubectl ${KUBECTL_CLI_OPTS} get namespace ${KUBE_NAMESPACE} || kubectl ${KUBECTL_CLI_OPTS} create namespace ${KUBE_NAMESPACE}
+    - kubectl ${KUBECTL_CLI_OPTS} apply -f ./kube/ -n $KUBE_NAMESPACE

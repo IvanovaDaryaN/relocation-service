@@ -1,0 +1,54 @@
+# src/test/resources/application-test.yml
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      transaction-id-prefix: test-relocation-
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+    consumer:
+      group-id: test-consumer-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: >-
+          com.fk.accounting.BudgetAllocatedEvent:com.fk.accounting.BudgetAllocatedEvent,
+          com.fk.accounting.AllocateBudgetCommand:com.fk.accounting.AllocateBudgetCommand
+    listener:
+      ack-mode: RECORD
+      missing-topics-fatal: false
+
+app:
+  kafka-topics:
+    relocation-topic:
+      name: jdmk9.relocation-topic
+      partitions: 1
+      replicas: 1
+    dlt-topic:
+      name: jdmk9.common-dead-letter-topic
+      partitions: 1
+      replicas: 1
+    accounting-topic:
+      name: jdmk9.accounting-topic
+      partitions: 1
+      replicas: 1
+    security-topic:
+      name: jdmk9.security-topic
+      partitions: 1
+      replicas: 1
+    outbox-topic:
+      name: jdmk9.outbox-topic
+      partitions: 1
+      replicas: 1
+    profiler-topic:
+      name: jdmk9.profiler-topic
+      partitions: 1
+      replicas: 1
+    notification-topic:
+      name: jdmk9.notification-topic
+      partitions: 1
+      replicas: 1

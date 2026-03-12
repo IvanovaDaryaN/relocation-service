@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relocation-deployment
+  namespace: fk
+  labels:
+    app: relocation-service
+    version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: relocation-service
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: relocation-service
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/relocation-service/actuator/prometheus"
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: relocation-service
+          image: repository.fk.team:5061/repository/docker-release/relocation-service:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http-pod
+              protocol: TCP
+          env:
+            # === ConfigMap настройки ===
+            - name: SPRING_APPLICATION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: relocation-configmap
+                  key: spring.application.name
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: relocation-configmap
+                  key: context-path
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: relocation-configmap
+                  key: spring.profiles.active
+            - name: LOGS_APPLICATION_LOKI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: relocation-configmap
+                  key: logs.application.loki.base-url
+
+            # === БД настройки ===
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: relocation-secrets
+                  key: DATABASE_URL
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: relocation-secrets
+                  key: DATABASE_USERNAME
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: relocation-secrets
+                  key: DATABASE_PASSWORD
+
+            # === Kafka настройки ===
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                secretKeyRef:
+                  name: relocation-secrets
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # === Дополнительные настройки ===
+
+            - name: SERVER_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: relocation-secrets
+                  key: SERVER_PORT
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "400Mi"
+              cpu: "400m"
+          livenessProbe:
+            httpGet:
+              path: /relocation-service/actuator/health/liveness
+              port: http-pod
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /relocation-service/actuator/health/readiness
+              port: http-pod
+            initialDelaySeconds: 40
+            timeoutSeconds: 10
+            periodSeconds: 20
+            failureThreshold: 3

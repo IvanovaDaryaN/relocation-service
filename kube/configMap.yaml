@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relocation-configmap
+  namespace: fk
+data:
+  spring.application.name: "RELOCATION-SERVICE"
+  spring.profiles.active: "dev,loki"
+
+  context-path: "/relocation-service"
+
+  kafka-bootstrap: //
+  db-url: "jdbc:postgresql://?currentSchema=relocation_service&ApplicationName=RELOCATION-SERVICE"
+
+  logs.application.loki.base-url: "http://loki-stack-loki-distributed-gateway.observability:80"
+  management.otlp.tracing.endpoint: "http://tempo.observability:4318/v1/traces"
+
+  management.endpoints.web.exposure.include: "health,info,metrics,env,prometheus"
+  management.prometheus.metrics.export.enabled: "true"
+  management.server.base-path: "/actuator"

@@ -1,0 +1,150 @@
+spring:
+  application:
+    name: RELOCATION-SERVICE
+  servlet:
+    multipart:
+      file-size-threshold: 2048
+      max-file-size: 5MB
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://?currentSchema=relocation_service&ApplicationName=${spring.application.name}}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 2
+      minimum-idle: 1
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: RelocationServicePool
+  liquibase:
+    change-log: classpath:db/changelog.xml
+    enabled: true
+    default-schema: relocation_service
+    liquibase-schema: relocation_service
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: relocation_service
+        jdbc.lob.non_contextual_creation: true
+      javax.persistence.schema-generation.database.action: validate
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSS
+  main:
+    banner-mode: "off"
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    admin:
+      auto-create: true
+      properties:
+        security.protocol: PLAINTEXT
+    listener:
+      ack-mode: batch
+      missing-topics-fatal: false
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      compression-type: lz4
+      batch-size: 65536
+      transaction-id-prefix: ${spring.application.name}-tx-
+      properties:
+        security.protocol: PLAINTEXT
+        max.in.flight.requests.per.connection: 5
+        request.timeout.ms: 4000
+        linger.ms: 100
+        delivery.timeout.ms: 4500
+        retry.backoff.ms: 500
+        enable.idempotence: true
+        spring.json.type.mapping: "outboxDto:com.fk.relocation.OutboxDto"
+        spring.json.add.type.headers: true
+    consumer:
+      group-id: ${spring.application.name}-consumer-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      isolation-level: read-committed
+      properties:
+        security.protocol: PLAINTEXT
+        spring.json.trusted.packages: com.fk.*
+        session.timeout.ms: 45000
+        heartbeat.interval.ms: 15000
+        max.poll.interval.ms: 300000
+        max.poll.records: 500
+
+app:
+  kafka-topics:
+    relocation-topic:
+      name: relocation-topic
+      partitions: 3
+      replicas: 3
+      min-in-sync-replicas: 2
+    accounting-topic:
+      name: accounting-topic
+      partitions: 3
+      replicas: 3
+      min-in-sync-replicas: 2
+    security-topic:
+      name: security-topic
+      partitions: 3
+      replicas: 3
+      min-in-sync-replicas: 2
+    notification-topic:
+      name: notification-topic
+      partitions: 3
+      replicas: 3
+      min-in-sync-replicas: 2
+    profiler-topic:
+      name: profiler-topic
+      partitions: 3
+      replicas: 3
+      min-in-sync-replicas: 2
+    dlt-topic:
+      name: common-dead-letter-topic
+      partitions: 3
+      replicas: 3
+      min-in-sync-replicas: 2
+    outbox-topic:
+      name: outbox-topic
+      partitions: 3
+      replicas: 3
+      min-in-sync-replicas: 2
+  outbox:
+    batch-size: 50А
+
+logging:
+  level:
+    org.springframework.kafka: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.jdbc.core.JdbcTemplate: DEBUG
+    org.springframework.transaction: DEBUG
+    com.zaxxer.hikari: DEBUG
+
+management:
+  server:
+    base-path: /actuator
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,prometheus
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  opentelemetry:
+    resource-attributes:
+      application: ${spring.application.name}:${server.port}
+    tracing:
+      enabled: true
+      sampling:
+        probability: 1.0
+    observations:
+      annotations:
+        enabled: true

@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: relocation-ingress
+  namespace: fk
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: k8s.fk.team
+      http:
+        paths:
+          - path: /relocation-service
+            pathType: Prefix
+            backend:
+              service:
+                name: relocation-service
+                port:
+                  number: 8080

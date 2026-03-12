@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: relocation-service
+  namespace: fk
+  labels:
+    app: relocation-service
+    management.prefix: relocation-service
+    tech-stack: springboot
+spec:
+  selector:
+    app: relocation-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http-pod
+      protocol: TCP
+  type: ClusterIP
